@@ -283,18 +283,27 @@ def get_channels():
     """Get available Discord channels from the bot"""
     try:
         global discord_bot
+        print(f"Discord bot status: {discord_bot is not None}")
         if discord_bot and discord_bot.bot:
+            print(f"Bot guilds: {len(discord_bot.bot.guilds)}")
             channels = []
             for guild in discord_bot.bot.guilds:
+                print(f"Guild: {guild.name}, Channels: {len(guild.text_channels)}")
                 for channel in guild.text_channels:
-                    if channel.permissions_for(guild.me).send_messages:
-                        channels.append({
-                            'id': channel.id,
-                            'name': channel.name,
-                            'guild_name': guild.name
-                        })
+                    try:
+                        if channel.permissions_for(guild.me).send_messages:
+                            channels.append({
+                                'id': channel.id,
+                                'name': channel.name,
+                                'guild_name': guild.name
+                            })
+                            print(f"Added channel: {guild.name} - #{channel.name}")
+                    except Exception as e:
+                        print(f"Error checking permissions for channel {channel.name}: {e}")
+            print(f"Total channels found: {len(channels)}")
             return jsonify(channels)
         else:
+            print("Discord bot not available")
             return jsonify([])
     except Exception as e:
         print(f"Error fetching channels: {e}")
@@ -412,9 +421,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
             initializeCalendar();
-            loadChannels();
             loadScheduledMessages();
             setupEventListeners();
+            
+            // Load channels with a delay to ensure bot is connected
+            setTimeout(loadChannels, 2000);
         });
         
         function initializeCalendar() {
@@ -453,16 +464,28 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             calendar.render();
         }
         
-        function loadChannels() {
+        function loadChannels(retryCount = 0) {
+            console.log('Loading channels, attempt:', retryCount + 1);
             fetch('/api/channels')
                 .then(response => response.json())
                 .then(channels => {
                     const select = document.getElementById('channelSelect');
+                    select.innerHTML = ''; // Clear existing options
+                    
                     if (channels.length === 0) {
-                        const option = document.createElement('option');
-                        option.value = '';
-                        option.textContent = 'No channels available - check bot permissions';
-                        select.appendChild(option);
+                        if (retryCount < 3) {
+                            // Retry after 2 seconds
+                            setTimeout(() => loadChannels(retryCount + 1), 2000);
+                            const option = document.createElement('option');
+                            option.value = '';
+                            option.textContent = 'Loading channels...';
+                            select.appendChild(option);
+                        } else {
+                            const option = document.createElement('option');
+                            option.value = '';
+                            option.textContent = 'No channels available - check bot permissions';
+                            select.appendChild(option);
+                        }
                     } else {
                         channels.forEach(channel => {
                             const option = document.createElement('option');
@@ -470,6 +493,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                             option.textContent = `${channel.guild_name} - #${channel.name}`;
                             select.appendChild(option);
                         });
+                        console.log('Loaded', channels.length, 'channels');
                     }
                 })
                 .catch(error => {
@@ -477,8 +501,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                     const select = document.getElementById('channelSelect');
                     const option = document.createElement('option');
                     option.value = '';
-                    option.textContent = 'Error loading channels';
+                    option.textContent = 'Error loading channels - retrying...';
                     select.appendChild(option);
+                    
+                    if (retryCount < 3) {
+                        setTimeout(() => loadChannels(retryCount + 1), 2000);
+                    }
                 });
         }
         
