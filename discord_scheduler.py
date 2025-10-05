@@ -151,7 +151,7 @@ def send_discord_message(channel_id, message_content):
     """Send a Discord message to a specific channel"""
     try:
         global discord_bot
-        if discord_bot:
+        if discord_bot and discord_bot.bot:
             # Create a new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -163,18 +163,25 @@ def send_discord_message(channel_id, message_content):
             
             loop.close()
             
-            # Update database record
+            # Update database record - find the most recent message for this channel
             with app.app_context():
-                message = ScheduledMessage.query.filter_by(channel_id=channel_id).first()
+                message = ScheduledMessage.query.filter_by(
+                    channel_id=channel_id,
+                    message_content=message_content,
+                    is_sent=False
+                ).order_by(ScheduledMessage.created_at.desc()).first()
+                
                 if message:
                     message.is_sent = True
                     db.session.commit()
+                    print(f"Marked message {message.id} as sent")
             
             return f"Message sent to channel {channel_id}: {result}"
         else:
             return "Discord bot not available"
         
     except Exception as e:
+        print(f"Error sending message: {str(e)}")
         return f"Error sending message: {str(e)}"
 
 @celery_app.task
@@ -183,17 +190,35 @@ def check_overdue_messages():
     try:
         with app.app_context():
             now = datetime.utcnow()
+            
+            # Find overdue messages that haven't been sent
             overdue_messages = ScheduledMessage.query.filter(
                 ScheduledMessage.scheduled_time <= now,
                 ScheduledMessage.is_sent == False
             ).all()
             
+            # Find very old messages (more than 1 hour past) to delete
+            old_cutoff = now - timedelta(hours=1)
+            old_messages = ScheduledMessage.query.filter(
+                ScheduledMessage.scheduled_time <= old_cutoff,
+                ScheduledMessage.is_sent == False
+            ).all()
+            
+            # Send overdue messages
             for msg in overdue_messages:
                 send_discord_message.delay(msg.channel_id, msg.message_content)
                 msg.is_sent = True
                 db.session.commit()
-                
-            return f"Processed {len(overdue_messages)} overdue messages"
+                print(f"Sent overdue message {msg.id}")
+            
+            # Delete very old unsent messages
+            for msg in old_messages:
+                db.session.delete(msg)
+                print(f"Deleted old message {msg.id}")
+            
+            db.session.commit()
+            
+            return f"Processed {len(overdue_messages)} overdue messages, deleted {len(old_messages)} old messages"
         
     except Exception as e:
         return f"Error checking overdue messages: {str(e)}"
@@ -332,18 +357,26 @@ def schedule_message():
 def delete_message(message_id):
     """Delete a scheduled message"""
     try:
+        print(f"=== DELETE MESSAGE API CALLED for ID {message_id} ===")
         message = ScheduledMessage.query.get_or_404(message_id)
+        print(f"Found message: {message.message_content}")
         
         # Cancel the Celery task if it exists
         if message.celery_task_id:
-            celery_app.control.revoke(message.celery_task_id, terminate=True)
+            try:
+                celery_app.control.revoke(message.celery_task_id, terminate=True)
+                print(f"Revoked Celery task: {message.celery_task_id}")
+            except Exception as e:
+                print(f"Error revoking task: {e}")
         
         db.session.delete(message)
         db.session.commit()
+        print(f"Deleted message {message_id}")
         
         return jsonify({'success': True})
         
     except Exception as e:
+        print(f"Error deleting message: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/test')
@@ -447,14 +480,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
                             </div>
-                            <div class="mt-2">
-                                <button class="btn btn-sm btn-info" type="button" onclick="loadChannels()">
-                                    Manual Load Channels
-                                </button>
-                                <button class="btn btn-sm btn-success" type="button" onclick="testScheduleMessage()">
-                                    Test Schedule
-                                </button>
-                            </div>
                         </div>
                         
                         <div class="mb-3">
@@ -538,7 +563,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             setTimeout(function() {
                 console.log('Auto-loading channels...');
                 loadChannels();
-            }, 500);
+            }, 1000);
         });
         
         function initializeCalendar() {
@@ -648,47 +673,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             });
         }
         
-        function testScheduleMessage() {
-            console.log('=== TEST SCHEDULE MESSAGE ===');
-            
-            // Use hardcoded test data
-            const testData = {
-                channel_id: 123456789, // Use first channel ID
-                message_content: 'Test message from button',
-                scheduled_time: '2025-10-05T18:00'
-            };
-            
-            console.log('Test data:', testData);
-            console.log('Sending test request to /api/schedule-message...');
-            
-            fetch('/api/schedule-message', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(testData)
-            })
-            .then(response => {
-                console.log('Response status:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('Response data:', data);
-                if (data.success) {
-                    alert('Test message scheduled successfully!');
-                    if (calendar) {
-                        calendar.refetchEvents();
-                    }
-                    loadScheduledMessages();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error scheduling test message:', error);
-                alert('Error scheduling test message: ' + error);
-            });
-        }
         
         function scheduleMessage() {
             console.log('=== SCHEDULING MESSAGE ===');
