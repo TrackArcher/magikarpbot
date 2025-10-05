@@ -258,6 +258,31 @@ def check_overdue_messages():
     except Exception as e:
         return f"Error checking overdue messages: {str(e)}"
 
+@celery_app.task
+def cleanup_stuck_tasks():
+    """Clean up any stuck or unacknowledged tasks"""
+    try:
+        print("Cleaning up stuck tasks...")
+        
+        # Revoke all active tasks
+        try:
+            celery_app.control.revoke(terminate=True)
+            print("Revoked all active tasks")
+        except Exception as e:
+            print(f"Could not revoke tasks: {e}")
+        
+        # Purge the queue
+        try:
+            celery_app.control.purge()
+            print("Purged Celery queue")
+        except Exception as e:
+            print(f"Could not purge queue: {e}")
+        
+        return "Cleanup completed"
+        
+    except Exception as e:
+        return f"Error during cleanup: {str(e)}"
+
 # Schedule the periodic task to run every minute
 celery_app.conf.beat_schedule = {
     'check-overdue-messages': {
@@ -979,7 +1004,24 @@ class DiscordScheduler:
     
     def start_celery_worker(self):
         """Start Celery worker"""
-        celery_app.worker_main(['worker', '--loglevel=info'])
+        try:
+            # Clean up any stuck tasks first
+            try:
+                cleanup_stuck_tasks.delay()
+                print("Queued cleanup of stuck tasks")
+            except Exception as e:
+                print(f"Could not queue cleanup: {e}")
+            
+            # Purge any existing tasks before starting
+            try:
+                celery_app.control.purge()
+                print("Purged existing Celery queue")
+            except Exception as e:
+                print(f"Could not purge queue: {e}")
+            
+            celery_app.worker_main(['worker', '--loglevel=info'])
+        except Exception as e:
+            print(f"Error starting Celery worker: {e}")
     
     def start_celery_beat(self):
         """Start Celery beat scheduler"""
