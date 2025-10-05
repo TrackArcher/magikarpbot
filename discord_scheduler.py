@@ -359,9 +359,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                     <form id="messageForm">
                         <div class="mb-3">
                             <label for="channelSelect" class="form-label">Channel</label>
-                            <select class="form-select" id="channelSelect" required>
-                                <option value="">Select a channel...</option>
-                            </select>
+                            <div class="input-group">
+                                <select class="form-select" id="channelSelect" required>
+                                    <option value="">Select a channel...</option>
+                                </select>
+                                <button class="btn btn-outline-secondary" type="button" id="reloadChannelsBtn">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="mb-3">
@@ -483,12 +488,17 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         function loadChannels(retryCount = 0) {
             console.log('Loading channels, attempt:', retryCount + 1);
             fetch('/api/channels')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(channels => {
+                    console.log('Received channels:', channels);
                     const select = document.getElementById('channelSelect');
                     select.innerHTML = ''; // Clear existing options
                     
                     if (channels.length === 0) {
+                        console.log('No channels received');
                         if (retryCount < 3) {
                             // Retry after 2 seconds
                             setTimeout(() => loadChannels(retryCount + 1), 2000);
@@ -503,13 +513,15 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                             select.appendChild(option);
                         }
                     } else {
+                        console.log('Adding', channels.length, 'channels to dropdown');
                         channels.forEach(channel => {
                             const option = document.createElement('option');
                             option.value = channel.id;
                             option.textContent = `${channel.guild_name} - #${channel.name}`;
                             select.appendChild(option);
+                            console.log('Added option:', option.textContent);
                         });
-                        console.log('Loaded', channels.length, 'channels');
+                        console.log('Successfully loaded', channels.length, 'channels');
                     }
                 })
                 .catch(error => {
@@ -560,6 +572,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 if (currentMessageId) {
                     deleteMessage(currentMessageId);
                 }
+            });
+            
+            document.getElementById('reloadChannelsBtn').addEventListener('click', function() {
+                console.log('Manual channel reload requested');
+                loadChannels();
             });
         }
         
