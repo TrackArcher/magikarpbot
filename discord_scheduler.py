@@ -425,6 +425,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
                             </div>
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-info" type="button" onclick="loadChannels()">
+                                    Manual Load Channels
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="mb-3">
@@ -499,11 +504,13 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing...');
             initializeCalendar();
             loadScheduledMessages();
             setupEventListeners();
             
             // Load channels immediately (like the debug page)
+            console.log('About to load channels...');
             loadChannels();
         });
         
@@ -544,7 +551,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }
         
         function loadChannels() {
+            console.log('=== LOADCHANNELS FUNCTION CALLED ===');
             console.log('Loading channels...');
+            
+            const select = document.getElementById('channelSelect');
+            console.log('Channel select element:', select);
+            
             fetch('/api/channels')
                 .then(response => {
                     console.log('Response status:', response.status);
@@ -552,7 +564,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 })
                 .then(channels => {
                     console.log('Received channels:', channels);
-                    const select = document.getElementById('channelSelect');
                     select.innerHTML = '<option value="">Select a channel...</option>';
                     
                     channels.forEach(channel => {
@@ -560,17 +571,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                         option.value = channel.id;
                         option.textContent = channel.guild_name + ' - #' + channel.name;
                         select.appendChild(option);
+                        console.log('Added channel:', option.textContent);
                     });
                     
                     console.log('Successfully loaded', channels.length, 'channels');
                 })
                 .catch(error => {
                     console.error('Error loading channels:', error);
-                    const select = document.getElementById('channelSelect');
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = 'Error loading channels';
-                    select.appendChild(option);
+                    select.innerHTML = '<option value="">Error loading channels</option>';
                 });
         }
         
