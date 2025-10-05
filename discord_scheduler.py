@@ -150,38 +150,52 @@ def schedule_discord_message(channel_id, message_content, scheduled_time):
 def send_discord_message(channel_id, message_content):
     """Send a Discord message to a specific channel"""
     try:
+        print(f"=== SENDING DISCORD MESSAGE ===")
+        print(f"Channel ID: {channel_id}")
+        print(f"Message: {message_content}")
+        
         global discord_bot
         if discord_bot and discord_bot.bot:
+            print("Discord bot is available")
+            
             # Create a new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            # Send the message
-            result = loop.run_until_complete(
-                discord_bot.send_message(channel_id, message_content)
-            )
-            
-            loop.close()
-            
-            # Update database record - find the most recent message for this channel
-            with app.app_context():
-                message = ScheduledMessage.query.filter_by(
-                    channel_id=channel_id,
-                    message_content=message_content,
-                    is_sent=False
-                ).order_by(ScheduledMessage.created_at.desc()).first()
+            try:
+                # Send the message
+                result = loop.run_until_complete(
+                    discord_bot.send_message(channel_id, message_content)
+                )
+                print(f"Message sent successfully: {result}")
                 
-                if message:
-                    message.is_sent = True
-                    db.session.commit()
-                    print(f"Marked message {message.id} as sent")
-            
-            return f"Message sent to channel {channel_id}: {result}"
+                # Update database record - find the most recent message for this channel
+                with app.app_context():
+                    message = ScheduledMessage.query.filter_by(
+                        channel_id=channel_id,
+                        message_content=message_content,
+                        is_sent=False
+                    ).order_by(ScheduledMessage.created_at.desc()).first()
+                    
+                    if message:
+                        message.is_sent = True
+                        db.session.commit()
+                        print(f"Marked message {message.id} as sent")
+                    else:
+                        print("No matching message found in database")
+                
+                return f"Message sent to channel {channel_id}: {result}"
+                
+            finally:
+                loop.close()
         else:
+            print("Discord bot not available")
             return "Discord bot not available"
         
     except Exception as e:
         print(f"Error sending message: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return f"Error sending message: {str(e)}"
 
 @celery_app.task
@@ -364,8 +378,13 @@ def delete_message(message_id):
         # Cancel the Celery task if it exists
         if message.celery_task_id:
             try:
+                # Revoke the task
                 celery_app.control.revoke(message.celery_task_id, terminate=True)
                 print(f"Revoked Celery task: {message.celery_task_id}")
+                
+                # Also try to purge the task from the queue
+                celery_app.control.purge()
+                print("Purged Celery queue")
             except Exception as e:
                 print(f"Error revoking task: {e}")
         
@@ -564,19 +583,17 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             loadScheduledMessages();
             setupEventListeners();
             
-            // Load channels automatically with multiple attempts
+            // Load channels automatically - try immediately and then with delays
+            console.log('Auto-loading channels (immediate)...');
+            loadChannels();
+            
             setTimeout(function() {
                 console.log('Auto-loading channels (attempt 1)...');
                 loadChannels();
-            }, 1000);
+            }, 2000);
             
             setTimeout(function() {
                 console.log('Auto-loading channels (attempt 2)...');
-                loadChannels();
-            }, 3000);
-            
-            setTimeout(function() {
-                console.log('Auto-loading channels (attempt 3)...');
                 loadChannels();
             }, 5000);
         });
