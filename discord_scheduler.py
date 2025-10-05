@@ -676,6 +676,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 console.log('Response data:', data);
                 if (data.success) {
                     alert('Test message scheduled successfully!');
+                    if (calendar) {
+                        calendar.refetchEvents();
+                    }
                     loadScheduledMessages();
                 } else {
                     alert('Error: ' + data.error);
@@ -731,7 +734,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 if (data.success) {
                     alert('Message scheduled successfully!');
                     document.getElementById('messageForm').reset();
-                    calendar.refetchEvents();
+                    if (calendar) {
+                        calendar.refetchEvents();
+                    }
                     loadScheduledMessages();
                 } else {
                     alert('Error: ' + data.error);
