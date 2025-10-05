@@ -351,6 +351,18 @@ def test_api():
     """Test endpoint to check if API is working"""
     return jsonify({'status': 'API working', 'bot_connected': discord_bot is not None})
 
+@app.route('/api/db-check')
+def db_check():
+    """Check database and show all scheduled messages"""
+    try:
+        messages = ScheduledMessage.query.all()
+        return jsonify({
+            'total_messages': len(messages),
+            'messages': [msg.to_dict() for msg in messages]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 @app.route('/api/channels')
 def get_channels():
     """Get available Discord channels from the bot"""
@@ -519,9 +531,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             loadScheduledMessages();
             setupEventListeners();
             
-            // Load channels immediately (like the debug page)
-            console.log('About to load channels...');
-            loadChannels();
+            // Load channels automatically with a small delay to ensure everything is ready
+            setTimeout(function() {
+                console.log('Auto-loading channels...');
+                loadChannels();
+            }, 500);
         });
         
         function initializeCalendar() {
@@ -647,6 +661,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             console.log('Date:', scheduledDate);
             console.log('Time:', scheduledTime);
             
+            // Validate form data
+            if (!channelId || !messageContent || !scheduledDate || !scheduledTime) {
+                alert('Please fill in all fields!');
+                return;
+            }
+            
             const formData = {
                 channel_id: parseInt(channelId),
                 message_content: messageContent,
@@ -654,6 +674,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             };
             
             console.log('Form data:', formData);
+            console.log('Sending request to /api/schedule-message...');
             
             fetch('/api/schedule-message', {
                 method: 'POST',
