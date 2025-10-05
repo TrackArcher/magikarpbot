@@ -100,10 +100,20 @@ class DiscordBot:
         try:
             channel = self.bot.get_channel(channel_id)
             if channel:
-                await channel.send(message_content)
+                print(f"Sending message to channel {channel.name} (ID: {channel_id})")
+                print(f"Message content: {message_content}")
+                
+                # Send the message
+                sent_message = await channel.send(message_content)
+                print(f"Message sent successfully! Message ID: {sent_message.id}")
                 return True
+            else:
+                print(f"Channel with ID {channel_id} not found")
+                return False
         except Exception as e:
             print(f"Error sending message to channel {channel_id}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def run(self):
@@ -153,50 +163,61 @@ def send_discord_message(channel_id, message_content):
         print(f"=== SENDING DISCORD MESSAGE ===")
         print(f"Channel ID: {channel_id}")
         print(f"Message: {message_content}")
+        print(f"Timestamp: {datetime.now()}")
         
         global discord_bot
         if discord_bot and discord_bot.bot:
-            print("Discord bot is available")
+            print("Discord bot is available and ready")
             
             # Create a new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
             try:
-                # Send the message
+                # Send the message using the improved send_message method
                 result = loop.run_until_complete(
                     discord_bot.send_message(channel_id, message_content)
                 )
-                print(f"Message sent successfully: {result}")
                 
-                # Update database record - find the most recent message for this channel
-                with app.app_context():
-                    message = ScheduledMessage.query.filter_by(
-                        channel_id=channel_id,
-                        message_content=message_content,
-                        is_sent=False
-                    ).order_by(ScheduledMessage.created_at.desc()).first()
+                if result:
+                    print(f"✅ Message sent successfully to channel {channel_id}")
                     
-                    if message:
-                        message.is_sent = True
-                        db.session.commit()
-                        print(f"Marked message {message.id} as sent")
-                    else:
-                        print("No matching message found in database")
+                    # Update database record - find the most recent message for this channel
+                    with app.app_context():
+                        message = ScheduledMessage.query.filter_by(
+                            channel_id=channel_id,
+                            message_content=message_content,
+                            is_sent=False
+                        ).order_by(ScheduledMessage.created_at.desc()).first()
+                        
+                        if message:
+                            message.is_sent = True
+                            db.session.commit()
+                            print(f"✅ Marked message {message.id} as sent in database")
+                        else:
+                            print("⚠️ No matching message found in database")
+                    
+                    return f"✅ Message sent to channel {channel_id} successfully"
+                else:
+                    print(f"❌ Failed to send message to channel {channel_id}")
+                    return f"❌ Failed to send message to channel {channel_id}"
                 
-                return f"Message sent to channel {channel_id}: {result}"
-                
+            except Exception as e:
+                print(f"❌ Error in message sending: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return f"❌ Error sending message: {str(e)}"
             finally:
                 loop.close()
         else:
-            print("Discord bot not available")
-            return "Discord bot not available"
+            print("❌ Discord bot not available")
+            return "❌ Discord bot not available"
         
     except Exception as e:
-        print(f"Error sending message: {str(e)}")
+        print(f"❌ Critical error in send_discord_message: {str(e)}")
         import traceback
         traceback.print_exc()
-        return f"Error sending message: {str(e)}"
+        return f"❌ Critical error: {str(e)}"
 
 @celery_app.task
 def check_overdue_messages():
@@ -414,6 +435,30 @@ def db_check():
         })
     except Exception as e:
         return jsonify({'error': str(e)})
+
+@app.route('/api/test-send/<int:channel_id>')
+def test_send_message(channel_id):
+    """Test sending a message to a specific channel"""
+    try:
+        print(f"=== TEST SEND MESSAGE API ===")
+        print(f"Channel ID: {channel_id}")
+        
+        # Trigger a test message send
+        task = send_discord_message.delay(
+            channel_id=channel_id,
+            message_content="🧪 Test message from Discord Scheduler Bot!"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test message queued',
+            'task_id': task.id
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 @app.route('/api/channels')
 def get_channels():
