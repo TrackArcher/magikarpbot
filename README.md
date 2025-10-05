@@ -40,9 +40,11 @@ A unified Discord bot with a web-based calendar interface for scheduling message
 4. **Configure the bot**:
    - Create a `.env` file in the project root:
    ```env
-   # ONLY CHANGE THESE TWO VALUES:
+   # ONLY CHANGE THIS VALUE (REQUIRED):
    DISCORD_TOKEN=your_discord_bot_token_here
-   DISCORD_GUILD_ID=your_guild_id_here
+   
+   # OPTIONAL (can leave as default):
+   DISCORD_GUILD_ID=0
    
    # THESE WORK AS-IS (DON'T CHANGE):
    REDIS_URL=redis://localhost:6379/0

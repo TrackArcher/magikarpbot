@@ -165,53 +165,79 @@ def send_discord_message(channel_id, message_content):
         print(f"Message: {message_content}")
         print(f"Timestamp: {datetime.now()}")
         
-        global discord_bot
-        if discord_bot and discord_bot.bot:
-            print("Discord bot is available and ready")
-            
-            # Create a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
+        # Use aiohttp to send the message directly via Discord API
+        import aiohttp
+        import asyncio
+        
+        async def send_discord_api_message():
             try:
-                # Send the message using the improved send_message method
-                result = loop.run_until_complete(
-                    discord_bot.send_message(channel_id, message_content)
-                )
+                # Discord API endpoint for sending messages
+                url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
                 
-                if result:
-                    print(f"✅ Message sent successfully to channel {channel_id}")
-                    
-                    # Update database record - find the most recent message for this channel
-                    with app.app_context():
-                        message = ScheduledMessage.query.filter_by(
-                            channel_id=channel_id,
-                            message_content=message_content,
-                            is_sent=False
-                        ).order_by(ScheduledMessage.created_at.desc()).first()
-                        
-                        if message:
-                            message.is_sent = True
-                            db.session.commit()
-                            print(f"✅ Marked message {message.id} as sent in database")
+                headers = {
+                    'Authorization': f'Bot {Config.DISCORD_TOKEN}',
+                    'Content-Type': 'application/json'
+                }
+                
+                data = {
+                    'content': message_content
+                }
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=headers, json=data) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            print(f"✅ Message sent successfully! Message ID: {result.get('id')}")
+                            return True
                         else:
-                            print("⚠️ No matching message found in database")
-                    
-                    return f"✅ Message sent to channel {channel_id} successfully"
-                else:
-                    print(f"❌ Failed to send message to channel {channel_id}")
-                    return f"❌ Failed to send message to channel {channel_id}"
-                
+                            error_text = await response.text()
+                            print(f"❌ Discord API error {response.status}: {error_text}")
+                            return False
+                            
             except Exception as e:
-                print(f"❌ Error in message sending: {str(e)}")
+                print(f"❌ Error sending message via API: {e}")
                 import traceback
                 traceback.print_exc()
-                return f"❌ Error sending message: {str(e)}"
-            finally:
-                loop.close()
-        else:
-            print("❌ Discord bot not available")
-            return "❌ Discord bot not available"
+                return False
+        
+        # Create a new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # Send the message via Discord API
+            result = loop.run_until_complete(send_discord_api_message())
+            
+            if result:
+                print(f"✅ Message sent successfully to channel {channel_id}")
+                
+                # Update database record - find the most recent message for this channel
+                with app.app_context():
+                    message = ScheduledMessage.query.filter_by(
+                        channel_id=channel_id,
+                        message_content=message_content,
+                        is_sent=False
+                    ).order_by(ScheduledMessage.created_at.desc()).first()
+                    
+                    if message:
+                        message.is_sent = True
+                        db.session.commit()
+                        print(f"✅ Marked message {message.id} as sent in database")
+                    else:
+                        print("⚠️ No matching message found in database")
+                
+                return f"✅ Message sent to channel {channel_id} successfully"
+            else:
+                print(f"❌ Failed to send message to channel {channel_id}")
+                return f"❌ Failed to send message to channel {channel_id}"
+            
+        except Exception as e:
+            print(f"❌ Error in message sending: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return f"❌ Error sending message: {str(e)}"
+        finally:
+            loop.close()
         
     except Exception as e:
         print(f"❌ Critical error in send_discord_message: {str(e)}")
@@ -518,6 +544,27 @@ def test_send_message(channel_id):
             'success': True,
             'message': 'Test message queued',
             'task_id': task.id
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/test-send-direct/<int:channel_id>')
+def test_send_message_direct(channel_id):
+    """Test sending a message directly (synchronously) to a specific channel"""
+    try:
+        print(f"=== TEST SEND MESSAGE DIRECT API ===")
+        print(f"Channel ID: {channel_id}")
+        
+        # Send message directly without Celery
+        result = send_discord_message(channel_id, "🧪 Direct test message from Discord Scheduler Bot!")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Direct test message sent',
+            'result': result
         })
     except Exception as e:
         return jsonify({
