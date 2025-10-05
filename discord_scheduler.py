@@ -419,6 +419,46 @@ def delete_message(message_id):
         print(f"Error deleting message: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 400
 
+@app.route('/api/clear-all-messages', methods=['DELETE'])
+def clear_all_messages():
+    """Delete all scheduled messages"""
+    try:
+        print(f"=== CLEAR ALL MESSAGES API CALLED ===")
+        
+        # Get all messages
+        messages = ScheduledMessage.query.all()
+        print(f"Found {len(messages)} messages to delete")
+        
+        # Cancel all Celery tasks
+        task_ids = [msg.celery_task_id for msg in messages if msg.celery_task_id]
+        if task_ids:
+            try:
+                for task_id in task_ids:
+                    celery_app.control.revoke(task_id, terminate=True)
+                    print(f"Revoked Celery task: {task_id}")
+                
+                # Purge the entire queue
+                celery_app.control.purge()
+                print("Purged entire Celery queue")
+            except Exception as e:
+                print(f"Error revoking tasks: {e}")
+        
+        # Delete all messages
+        for message in messages:
+            db.session.delete(message)
+        
+        db.session.commit()
+        print(f"Deleted all {len(messages)} messages")
+        
+        return jsonify({
+            'success': True,
+            'deleted_count': len(messages)
+        })
+        
+    except Exception as e:
+        print(f"Error clearing all messages: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 @app.route('/api/test')
 def test_api():
     """Test endpoint to check if API is working"""
@@ -575,7 +615,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 
                 <!-- Scheduled Messages List -->
                 <div class="mt-4">
-                    <h5><i class="fas fa-list"></i> Scheduled Messages</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5><i class="fas fa-list"></i> Scheduled Messages</h5>
+                        <button class="btn btn-sm btn-danger" id="clearAllBtn">
+                            <i class="fas fa-trash"></i> Clear All
+                        </button>
+                    </div>
                     <div id="scheduledMessages" class="list-group">
                         <!-- Messages will be loaded here -->
                     </div>
@@ -772,6 +817,10 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 console.log('Manual channel reload requested');
                 loadChannels();
             });
+            
+            document.getElementById('clearAllBtn').addEventListener('click', function() {
+                clearAllMessages();
+            });
         }
         
         
@@ -863,6 +912,29 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 })
                 .catch(error => {
                     alert('Error deleting message: ' + error);
+                });
+            }
+        }
+        
+        function clearAllMessages() {
+            if (confirm('Are you sure you want to delete ALL scheduled messages? This action cannot be undone!')) {
+                console.log('Clearing all messages...');
+                
+                fetch('/api/clear-all-messages', {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully deleted ${data.deleted_count} messages!`);
+                        calendar.refetchEvents();
+                        loadScheduledMessages();
+                    } else {
+                        alert('Error clearing messages: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Error clearing messages: ' + error);
                 });
             }
         }
