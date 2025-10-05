@@ -280,14 +280,25 @@ def delete_message(message_id):
 
 @app.route('/api/channels')
 def get_channels():
-    """Get available Discord channels (mock data for now)"""
-    # In a real implementation, you'd fetch this from Discord API
-    channels = [
-        {'id': 123456789, 'name': 'general'},
-        {'id': 987654321, 'name': 'announcements'},
-        {'id': 555666777, 'name': 'bot-commands'}
-    ]
-    return jsonify(channels)
+    """Get available Discord channels from the bot"""
+    try:
+        global discord_bot
+        if discord_bot and discord_bot.bot:
+            channels = []
+            for guild in discord_bot.bot.guilds:
+                for channel in guild.text_channels:
+                    if channel.permissions_for(guild.me).send_messages:
+                        channels.append({
+                            'id': channel.id,
+                            'name': channel.name,
+                            'guild_name': guild.name
+                        })
+            return jsonify(channels)
+        else:
+            return jsonify([])
+    except Exception as e:
+        print(f"Error fetching channels: {e}")
+        return jsonify([])
 
 # HTML Template
 HTML_TEMPLATE = '''<!DOCTYPE html>
@@ -447,12 +458,27 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 .then(response => response.json())
                 .then(channels => {
                     const select = document.getElementById('channelSelect');
-                    channels.forEach(channel => {
+                    if (channels.length === 0) {
                         const option = document.createElement('option');
-                        option.value = channel.id;
-                        option.textContent = `#${channel.name}`;
+                        option.value = '';
+                        option.textContent = 'No channels available - check bot permissions';
                         select.appendChild(option);
-                    });
+                    } else {
+                        channels.forEach(channel => {
+                            const option = document.createElement('option');
+                            option.value = channel.id;
+                            option.textContent = `${channel.guild_name} - #${channel.name}`;
+                            select.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading channels:', error);
+                    const select = document.getElementById('channelSelect');
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'Error loading channels';
+                    select.appendChild(option);
                 });
         }
         
