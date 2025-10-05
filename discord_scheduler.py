@@ -278,20 +278,33 @@ def delete_message(message_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
+@app.route('/api/test')
+def test_api():
+    """Test endpoint to check if API is working"""
+    return jsonify({'status': 'API working', 'bot_connected': discord_bot is not None})
+
 @app.route('/api/channels')
 def get_channels():
     """Get available Discord channels from the bot"""
     try:
         global discord_bot
+        print(f"=== CHANNEL API CALLED ===")
         print(f"Discord bot status: {discord_bot is not None}")
+        
         if discord_bot and discord_bot.bot:
             print(f"Bot guilds: {len(discord_bot.bot.guilds)}")
             channels = []
+            
             for guild in discord_bot.bot.guilds:
                 print(f"Guild: {guild.name}, Channels: {len(guild.text_channels)}")
                 for channel in guild.text_channels:
                     try:
-                        if channel.permissions_for(guild.me).send_messages:
+                        # Check if bot can send messages to this channel
+                        permissions = channel.permissions_for(guild.me)
+                        can_send = permissions.send_messages
+                        print(f"Channel #{channel.name}: can_send={can_send}")
+                        
+                        if can_send:
                             channels.append({
                                 'id': channel.id,
                                 'name': channel.name,
@@ -300,13 +313,16 @@ def get_channels():
                             print(f"Added channel: {guild.name} - #{channel.name}")
                     except Exception as e:
                         print(f"Error checking permissions for channel {channel.name}: {e}")
+            
             print(f"Total channels found: {len(channels)}")
             return jsonify(channels)
         else:
-            print("Discord bot not available")
+            print("Discord bot not available - returning empty list")
             return jsonify([])
     except Exception as e:
         print(f"Error fetching channels: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify([])
 
 # HTML Template
