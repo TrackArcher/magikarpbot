@@ -10,7 +10,7 @@ import time
 import threading
 import asyncio
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
 from multiprocessing import Process
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -559,11 +559,21 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             loadScheduledMessages();
             setupEventListeners();
             
-            // Load channels automatically with a small delay to ensure everything is ready
+            // Load channels automatically with multiple attempts
             setTimeout(function() {
-                console.log('Auto-loading channels...');
+                console.log('Auto-loading channels (attempt 1)...');
                 loadChannels();
             }, 1000);
+            
+            setTimeout(function() {
+                console.log('Auto-loading channels (attempt 2)...');
+                loadChannels();
+            }, 3000);
+            
+            setTimeout(function() {
+                console.log('Auto-loading channels (attempt 3)...');
+                loadChannels();
+            }, 5000);
         });
         
         function initializeCalendar() {
@@ -609,6 +619,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             const select = document.getElementById('channelSelect');
             console.log('Channel select element:', select);
             
+            if (!select) {
+                console.error('Channel select element not found!');
+                return;
+            }
+            
             fetch('/api/channels')
                 .then(response => {
                     console.log('Response status:', response.status);
@@ -617,6 +632,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 .then(channels => {
                     console.log('Received channels:', channels);
                     select.innerHTML = '<option value="">Select a channel...</option>';
+                    
+                    if (channels.length === 0) {
+                        console.log('No channels received, retrying in 2 seconds...');
+                        setTimeout(loadChannels, 2000);
+                        return;
+                    }
                     
                     channels.forEach(channel => {
                         const option = document.createElement('option');
@@ -630,7 +651,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 })
                 .catch(error => {
                     console.error('Error loading channels:', error);
-                    select.innerHTML = '<option value="">Error loading channels</option>';
+                    select.innerHTML = '<option value="">Error loading channels - retrying...</option>';
+                    setTimeout(loadChannels, 2000);
                 });
         }
         
