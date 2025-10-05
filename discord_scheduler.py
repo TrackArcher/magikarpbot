@@ -480,6 +480,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
                             </div>
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-warning" type="button" onclick="loadChannels()">
+                                    Force Load Channels
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="mb-3">
@@ -624,30 +629,42 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 return;
             }
             
+            // Show loading state
+            select.innerHTML = '<option value="">Loading channels...</option>';
+            
             fetch('/api/channels')
                 .then(response => {
                     console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
                     return response.json();
                 })
                 .then(channels => {
                     console.log('Received channels:', channels);
+                    console.log('Number of channels:', channels.length);
+                    
+                    // Clear and reset
                     select.innerHTML = '<option value="">Select a channel...</option>';
                     
                     if (channels.length === 0) {
                         console.log('No channels received, retrying in 2 seconds...');
+                        select.innerHTML = '<option value="">No channels available - retrying...</option>';
                         setTimeout(loadChannels, 2000);
                         return;
                     }
                     
-                    channels.forEach(channel => {
+                    // Add channels
+                    channels.forEach((channel, index) => {
                         const option = document.createElement('option');
                         option.value = channel.id;
                         option.textContent = channel.guild_name + ' - #' + channel.name;
                         select.appendChild(option);
-                        console.log('Added channel:', option.textContent);
+                        console.log(`Added channel ${index + 1}:`, option.textContent);
                     });
                     
                     console.log('Successfully loaded', channels.length, 'channels');
+                    console.log('Select element now has', select.options.length, 'options');
                 })
                 .catch(error => {
                     console.error('Error loading channels:', error);
