@@ -473,7 +473,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                             <input type="time" class="form-control" id="scheduledTime" required>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary w-100">
+                        <button type="button" class="btn btn-primary w-100" onclick="scheduleMessage()">
                             <i class="fas fa-calendar-plus"></i> Schedule Message
                         </button>
                     </form>
@@ -635,19 +635,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         
         function setupEventListeners() {
             console.log('Setting up event listeners...');
-            
-            const form = document.getElementById('messageForm');
-            console.log('Form element:', form);
-            
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    console.log('Form submit event triggered!');
-                    e.preventDefault();
-                    scheduleMessage();
-                });
-            } else {
-                console.error('Form element not found!');
-            }
             
             document.getElementById('deleteMessageBtn').addEventListener('click', function() {
                 if (currentMessageId) {
