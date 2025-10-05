@@ -572,11 +572,11 @@ class DiscordScheduler:
     
     def start_celery_worker(self):
         """Start Celery worker"""
-        celery_app.worker_main()
+        celery_app.worker_main(['worker', '--loglevel=info'])
     
     def start_celery_beat(self):
         """Start Celery beat scheduler"""
-        celery_app.start()
+        celery_app.start(['beat', '--loglevel=info'])
     
     def start_flask_app(self):
         """Start Flask web application"""
