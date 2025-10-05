@@ -280,10 +280,13 @@ def get_scheduled_messages():
 def schedule_message():
     """Schedule a new message"""
     try:
+        print("=== SCHEDULE MESSAGE API CALLED ===")
         data = request.get_json()
+        print("Received data:", data)
         
         # Parse the scheduled time
         scheduled_time = datetime.fromisoformat(data['scheduled_time'])
+        print("Parsed scheduled time:", scheduled_time)
         
         # Create new scheduled message
         scheduled_msg = ScheduledMessage(
@@ -291,9 +294,11 @@ def schedule_message():
             message_content=data['message_content'],
             scheduled_time=scheduled_time
         )
+        print("Created scheduled message object")
         
         db.session.add(scheduled_msg)
         db.session.commit()
+        print("Added to database, ID:", scheduled_msg.id)
         
         # Schedule the message with Celery
         task = schedule_discord_message.delay(
@@ -301,10 +306,12 @@ def schedule_message():
             message_content=data['message_content'],
             scheduled_time=scheduled_time.isoformat()
         )
+        print("Celery task created:", task.id)
         
         # Update the record with the Celery task ID
         scheduled_msg.celery_task_id = task.id
         db.session.commit()
+        print("Updated with Celery task ID")
         
         return jsonify({
             'success': True,
@@ -313,6 +320,9 @@ def schedule_message():
         })
         
     except Exception as e:
+        print("Error scheduling message:", str(e))
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -625,11 +635,25 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }
         
         function scheduleMessage() {
+            console.log('=== SCHEDULING MESSAGE ===');
+            
+            const channelId = document.getElementById('channelSelect').value;
+            const messageContent = document.getElementById('messageContent').value;
+            const scheduledDate = document.getElementById('scheduledDate').value;
+            const scheduledTime = document.getElementById('scheduledTime').value;
+            
+            console.log('Channel ID:', channelId);
+            console.log('Message:', messageContent);
+            console.log('Date:', scheduledDate);
+            console.log('Time:', scheduledTime);
+            
             const formData = {
-                channel_id: parseInt(document.getElementById('channelSelect').value),
-                message_content: document.getElementById('messageContent').value,
-                scheduled_time: document.getElementById('scheduledDate').value + 'T' + document.getElementById('scheduledTime').value
+                channel_id: parseInt(channelId),
+                message_content: messageContent,
+                scheduled_time: scheduledDate + 'T' + scheduledTime
             };
+            
+            console.log('Form data:', formData);
             
             fetch('/api/schedule-message', {
                 method: 'POST',
@@ -638,8 +662,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 },
                 body: JSON.stringify(formData)
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
                 if (data.success) {
                     alert('Message scheduled successfully!');
                     document.getElementById('messageForm').reset();
@@ -650,6 +678,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 }
             })
             .catch(error => {
+                console.error('Error scheduling message:', error);
                 alert('Error scheduling message: ' + error);
             });
         }
