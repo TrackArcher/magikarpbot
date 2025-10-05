@@ -69,7 +69,15 @@ class ScheduledMessage(db.Model):
 
 # Initialize Celery
 celery_app = Celery('discord_scheduler')
-celery_app.config_from_object(Config)
+celery_app.conf.update(
+    broker_url=Config.REDIS_URL,
+    result_backend=Config.REDIS_URL,
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='UTC',
+    enable_utc=True,
+)
 
 # Global Discord bot instance
 discord_bot = None
