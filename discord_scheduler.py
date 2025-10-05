@@ -451,6 +451,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                                 <button class="btn btn-sm btn-info" type="button" onclick="loadChannels()">
                                     Manual Load Channels
                                 </button>
+                                <button class="btn btn-sm btn-success" type="button" onclick="testScheduleMessage()">
+                                    Test Schedule
+                                </button>
                             </div>
                         </div>
                         
@@ -631,10 +634,20 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }
         
         function setupEventListeners() {
-            document.getElementById('messageForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                scheduleMessage();
-            });
+            console.log('Setting up event listeners...');
+            
+            const form = document.getElementById('messageForm');
+            console.log('Form element:', form);
+            
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    console.log('Form submit event triggered!');
+                    e.preventDefault();
+                    scheduleMessage();
+                });
+            } else {
+                console.error('Form element not found!');
+            }
             
             document.getElementById('deleteMessageBtn').addEventListener('click', function() {
                 if (currentMessageId) {
@@ -645,6 +658,45 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             document.getElementById('reloadChannelsBtn').addEventListener('click', function() {
                 console.log('Manual channel reload requested');
                 loadChannels();
+            });
+        }
+        
+        function testScheduleMessage() {
+            console.log('=== TEST SCHEDULE MESSAGE ===');
+            
+            // Use hardcoded test data
+            const testData = {
+                channel_id: 123456789, // Use first channel ID
+                message_content: 'Test message from button',
+                scheduled_time: '2025-10-05T18:00'
+            };
+            
+            console.log('Test data:', testData);
+            console.log('Sending test request to /api/schedule-message...');
+            
+            fetch('/api/schedule-message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(testData)
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.success) {
+                    alert('Test message scheduled successfully!');
+                    loadScheduledMessages();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error scheduling test message:', error);
+                alert('Error scheduling test message: ' + error);
             });
         }
         
