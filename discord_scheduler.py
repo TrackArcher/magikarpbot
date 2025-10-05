@@ -503,8 +503,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             loadScheduledMessages();
             setupEventListeners();
             
-            // Load channels with a delay to ensure bot is connected
-            setTimeout(loadChannels, 2000);
+            // Load channels immediately (like the debug page)
+            loadChannels();
         });
         
         function initializeCalendar() {
@@ -543,8 +543,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             calendar.render();
         }
         
-        function loadChannels(retryCount = 0) {
-            console.log('Loading channels, attempt:', retryCount + 1);
+        function loadChannels() {
+            console.log('Loading channels...');
             fetch('/api/channels')
                 .then(response => {
                     console.log('Response status:', response.status);
@@ -553,46 +553,24 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 .then(channels => {
                     console.log('Received channels:', channels);
                     const select = document.getElementById('channelSelect');
-                    select.innerHTML = ''; // Clear existing options
+                    select.innerHTML = '<option value="">Select a channel...</option>';
                     
-                    if (channels.length === 0) {
-                        console.log('No channels received');
-                        if (retryCount < 3) {
-                            // Retry after 2 seconds
-                            setTimeout(() => loadChannels(retryCount + 1), 2000);
-                            const option = document.createElement('option');
-                            option.value = '';
-                            option.textContent = 'Loading channels...';
-                            select.appendChild(option);
-                        } else {
-                            const option = document.createElement('option');
-                            option.value = '';
-                            option.textContent = 'No channels available - check bot permissions';
-                            select.appendChild(option);
-                        }
-                    } else {
-                        console.log('Adding', channels.length, 'channels to dropdown');
-                        channels.forEach(channel => {
-                            const option = document.createElement('option');
-                            option.value = channel.id;
-                            option.textContent = `${channel.guild_name} - #${channel.name}`;
-                            select.appendChild(option);
-                            console.log('Added option:', option.textContent);
-                        });
-                        console.log('Successfully loaded', channels.length, 'channels');
-                    }
+                    channels.forEach(channel => {
+                        const option = document.createElement('option');
+                        option.value = channel.id;
+                        option.textContent = channel.guild_name + ' - #' + channel.name;
+                        select.appendChild(option);
+                    });
+                    
+                    console.log('Successfully loaded', channels.length, 'channels');
                 })
                 .catch(error => {
                     console.error('Error loading channels:', error);
                     const select = document.getElementById('channelSelect');
                     const option = document.createElement('option');
                     option.value = '';
-                    option.textContent = 'Error loading channels - retrying...';
+                    option.textContent = 'Error loading channels';
                     select.appendChild(option);
-                    
-                    if (retryCount < 3) {
-                        setTimeout(() => loadChannels(retryCount + 1), 2000);
-                    }
                 });
         }
         
