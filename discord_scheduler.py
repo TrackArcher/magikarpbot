@@ -213,6 +213,7 @@ def check_overdue_messages():
     try:
         print(f"=== CHECKING OVERDUE MESSAGES ===")
         print(f"Current time: {datetime.utcnow()}")
+        print(f"Task executed by Celery worker")
         
         with app.app_context():
             now = datetime.utcnow()
@@ -237,6 +238,10 @@ def check_overdue_messages():
             # Send overdue messages directly (not via delay)
             for msg in overdue_messages:
                 print(f"Processing overdue message {msg.id}: {msg.message_content[:50]}...")
+                print(f"Message scheduled for: {msg.scheduled_time}")
+                print(f"Current time: {now}")
+                print(f"Is overdue: {msg.scheduled_time <= now}")
+                
                 result = send_discord_message(msg.channel_id, msg.message_content)
                 print(f"Send result: {result}")
                 msg.is_sent = True
@@ -584,6 +589,26 @@ def test_send_message_simple(channel_id):
                 'status_code': response.status_code
             })
             
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/trigger-check-overdue')
+def trigger_check_overdue():
+    """Manually trigger the check_overdue_messages task"""
+    try:
+        print(f"=== MANUAL TRIGGER CHECK OVERDUE ===")
+        
+        # Trigger the task manually
+        result = check_overdue_messages()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Check overdue messages triggered manually',
+            'result': result
+        })
     except Exception as e:
         return jsonify({
             'success': False,
