@@ -617,7 +617,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 <div class="mt-4">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5><i class="fas fa-list"></i> Scheduled Messages</h5>
-                        <button class="btn btn-sm btn-danger" id="clearAllBtn">
+                        <button class="btn btn-sm btn-danger" id="clearAllBtn" onclick="clearAllMessages()">
                             <i class="fas fa-trash"></i> Clear All
                         </button>
                     </div>
@@ -818,9 +818,15 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 loadChannels();
             });
             
-            document.getElementById('clearAllBtn').addEventListener('click', function() {
-                clearAllMessages();
-            });
+            const clearAllBtn = document.getElementById('clearAllBtn');
+            if (clearAllBtn) {
+                clearAllBtn.addEventListener('click', function() {
+                    clearAllMessages();
+                });
+                console.log('Clear All button event listener added');
+            } else {
+                console.error('Clear All button not found!');
+            }
         }
         
         
@@ -917,25 +923,36 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }
         
         function clearAllMessages() {
+            console.log('clearAllMessages function called');
+            
             if (confirm('Are you sure you want to delete ALL scheduled messages? This action cannot be undone!')) {
-                console.log('Clearing all messages...');
+                console.log('User confirmed - clearing all messages...');
                 
                 fetch('/api/clear-all-messages', {
                     method: 'DELETE'
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Clear all response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Clear all response data:', data);
                     if (data.success) {
                         alert(`Successfully deleted ${data.deleted_count} messages!`);
-                        calendar.refetchEvents();
+                        if (calendar) {
+                            calendar.refetchEvents();
+                        }
                         loadScheduledMessages();
                     } else {
                         alert('Error clearing messages: ' + data.error);
                     }
                 })
                 .catch(error => {
+                    console.error('Error clearing messages:', error);
                     alert('Error clearing messages: ' + error);
                 });
+            } else {
+                console.log('User cancelled clear all');
             }
         }
     </script>
