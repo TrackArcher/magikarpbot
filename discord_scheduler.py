@@ -212,6 +212,64 @@ def index():
     """Main calendar interface"""
     return render_template('index.html')
 
+@app.route('/debug')
+def debug_page():
+    """Debug page to test channel loading"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Debug Channels</title>
+    </head>
+    <body>
+        <h1>Channel Debug Page</h1>
+        <button onclick="testAPI()">Test API</button>
+        <button onclick="loadChannels()">Load Channels</button>
+        <div id="output"></div>
+        <select id="channelSelect">
+            <option value="">Select a channel...</option>
+        </select>
+        
+        <script>
+            function testAPI() {
+                fetch('/api/test')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('output').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                    });
+            }
+            
+            function loadChannels() {
+                console.log('Loading channels...');
+                fetch('/api/channels')
+                    .then(response => {
+                        console.log('Response status:', response.status);
+                        return response.json();
+                    })
+                    .then(channels => {
+                        console.log('Received channels:', channels);
+                        const select = document.getElementById('channelSelect');
+                        select.innerHTML = '<option value="">Select a channel...</option>';
+                        
+                        channels.forEach(channel => {
+                            const option = document.createElement('option');
+                            option.value = channel.id;
+                            option.textContent = channel.guild_name + ' - #' + channel.name;
+                            select.appendChild(option);
+                        });
+                        
+                        document.getElementById('output').innerHTML = '<pre>Loaded ' + channels.length + ' channels</pre>';
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        document.getElementById('output').innerHTML = '<pre>Error: ' + error + '</pre>';
+                    });
+            }
+        </script>
+    </body>
+    </html>
+    '''
+
 @app.route('/api/scheduled-messages')
 def get_scheduled_messages():
     """Get all scheduled messages"""
